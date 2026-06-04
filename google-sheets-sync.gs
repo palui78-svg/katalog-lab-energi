@@ -97,54 +97,6 @@ function doPost(e) {
       ok: true,
       message: 'Data SITRAS berhasil disimpan ke Google Sheets',
       summary:
-        count_(payload.samples) + ' sampel er'],
-  ['method', 'Metode'],
-  ['lab', 'Laboratorium'],
-  ['analyst', 'Analis'],
-  ['status', 'Status'],
-  ['dateStart', 'Tgl Mulai'],
-  ['dateEnd', 'Tgl Selesai'],
-  ['massUsed', 'Massa Dipakai'],
-  ['certNo', 'No Laporan / Sertifikat'],
-  ['result', 'Ringkasan Hasil'],
-  ['fileRef', 'Rujukan Berkas'],
-  ['temp', 'Suhu'],
-  ['rate', 'Laju'],
-  ['hold', 'Waktu Tahan'],
-  ['createdAt', 'Created At'],
-];
-
-const MOVEMENT_COLUMNS = [
-  ['id', 'ID'],
-  ['sampleCode', 'Kode Sampel'],
-  ['action', 'Aksi'],
-  ['fromLocation', 'Dari Lokasi'],
-  ['toLocation', 'Ke Lokasi'],
-  ['datetime', 'Tanggal Waktu'],
-  ['person', 'Oleh'],
-  ['note', 'Catatan'],
-];
-
-function doGet() {
-  return jsonOutput_({
-    ok: true,
-    app: 'SITRAS Google Sheets Sync',
-    spreadsheet: getSpreadsheet_().getName(),
-    sheetNames: SHEET_NAMES,
-  });
-}
-
-function doPost(e) {
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    const payload = parsePayload_(e);
-    validatePayload_(payload);
-    writeDatabase_(payload);
-    return jsonOutput_({
-      ok: true,
-      message: 'Data SITRAS berhasil disimpan ke Google Sheets',
-      summary:
         count_(payload.samples) + ' sampel | ' +
         count_(payload.tests) + ' uji | ' +
         count_(payload.movements) + ' log',
