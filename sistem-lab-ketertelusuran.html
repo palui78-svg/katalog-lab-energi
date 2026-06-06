@@ -241,19 +241,24 @@ body.printing{background:#fff}
 .lbl .qt .ls{font-size:7.5px; color:#555; margin-top:3px; letter-spacing:.04em; text-transform:uppercase}
 /* --- label termal 40×40 mm (teks hitam pekat utk printer termal) --- */
 .lbl-t{ width:40mm; height:40mm; box-sizing:border-box; overflow:hidden; background:#fff; color:#000;
-        font-family:"IBM Plex Mono",monospace; padding:1.8mm 1.8mm; position:relative; margin:0;
-        page-break-after:always; break-after:page; }
+        font-family:"IBM Plex Mono",monospace; padding:1.1mm 1.4mm 1.1mm; position:relative; margin:0;
+        display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+        page-break-after:always; break-after:page; page-break-inside:avoid; break-inside:avoid; }
 .lbl-t:last-child{ page-break-after:auto; break-after:auto; }
-.lbl-t .tc{ font-weight:700; font-size:2.8mm; line-height:1.02; text-align:center; letter-spacing:-.18px;
+.lbl-t .tc{ width:100%; font-weight:700; font-size:2.55mm; line-height:1; text-align:center; letter-spacing:-.14px;
             white-space:nowrap; overflow:hidden; color:#000; }
-.lbl-t .row{ display:flex; align-items:flex-start; gap:1.5mm; width:100%; margin-top:1.3mm; }
-.lbl-t .qbox{ flex:0 0 22mm; width:22mm; height:22mm; display:flex; align-items:center; justify-content:center; }
-.lbl-t .qbox img, .lbl-t .qbox canvas, .lbl-t .qbox table{ width:22mm !important; height:22mm !important; display:block; image-rendering:pixelated; }
-.lbl-t .info{ flex:1 1 auto; min-width:0; line-height:1.2; color:#000; }
-.lbl-t .info .a{ font-size:2.05mm; font-weight:700; color:#000; word-break:break-word; }
-.lbl-t .info .m{ font-size:1.9mm; color:#000; word-break:break-word; margin-top:.4mm; }
-.lbl-t .info .d{ font-size:1.75mm; color:#000; margin-top:.35mm; }
-.lbl-t .info .o{ font-size:1.55mm; color:#000; margin-top:.65mm; letter-spacing:.02em; text-transform:uppercase; }
+.lbl-t .row{ width:100%; display:flex; flex-direction:column; align-items:center; gap:.45mm; margin-top:.45mm; }
+.lbl-t .qbox{ flex:0 0 auto; width:20.2mm; height:20.2mm; display:flex; align-items:center; justify-content:center; }
+.lbl-t .qbox img, .lbl-t .qbox canvas, .lbl-t .qbox table{ width:20.2mm !important; height:20.2mm !important; display:block; image-rendering:pixelated; }
+.lbl-t .info{ width:100%; min-width:0; line-height:1.03; color:#000; display:flex; flex-direction:column; gap:.15mm; }
+.lbl-t .info .a,
+.lbl-t .info .m,
+.lbl-t .info .d,
+.lbl-t .info .o{ display:block; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
+.lbl-t .info .a{ font-size:1.9mm; font-weight:700; color:#000; }
+.lbl-t .info .m{ font-size:1.62mm; color:#000; }
+.lbl-t .info .d{ font-size:1.5mm; color:#000; }
+.lbl-t .info .o{ font-size:1.36mm; color:#000; letter-spacing:.01em; text-transform:uppercase; }
 
 @media (max-width:760px){
   .grid2,.grid3{grid-template-columns:1fr}
@@ -342,7 +347,8 @@ const TEST_STATUS = {
   'Selesai':     {c:'#2e5d3e', b:'#dcebdf'},
   'Dibatalkan':  {c:'#a8432e', b:'#f1ddd6'},
 };
-const TEST_CATS = ['Proksimat','Ultimat (CHNS-O)','FTIR-ATR','Pirolisis (RSM-CCD run)','Nilai kalor (HHV)','Kadar air','Densitas / bulk density','GC-MS bio-oil','Bilangan asam','Lainnya'];
+const TEST_CATS = ['Proksimat','Ultimat (CHNS-O)','FTIR-ATR','Pirolisis (RSM-CCD run)','Pyrolysis (RSM-CCD run)','Nilai kalor (HHV)','Kadar air','Densitas / bulk density','GC-MS bio-oil','Bilangan asam','Lainnya'];
+const PYRO_TEST_CATS = ['Pirolisis (RSM-CCD run)','Pyrolysis (RSM-CCD run)','Pyrolysis / Pirolisis (RSM-CCD run)'];
 const STORAGE_COND = ['Suhu ruang','Desikator','Lemari asam','Kulkas 4°C','Freezer -20°C','Botol gelap','Vakum / kedap'];
 
 /* ---------- Lapisan penyimpanan (window.storage + localStorage + fallback memori) ---------- */
@@ -912,7 +918,7 @@ function viewTest(){
     <thead><tr><th>Sampel</th><th>Uji</th><th>Metode / Lab</th><th>Analis</th><th>Tanggal</th><th>Massa</th><th>Status</th></tr></thead>
     <tbody>
       ${tests.length? tests.map(t=>`<tr onclick="App.detail('${esc(t.sampleCode)}')">
-        <td class="code-cell">${esc(t.sampleCode)}</td>
+        <td class="code-cell">${esc(t.sampleCode)}${(()=>{ const s=DB.samples.find(x=>x.id===t.sampleCode); const sampleType=(s&&s.type)||t.sampleType||''; return sampleType?`<div class="alias" style="color:var(--moss-d)">${esc(sampleType)} · ${esc(sampleTypeText(sampleType))}</div>`:''; })()}</td>
         <td><b style="font-size:13px">${esc(t.category)}</b>${t.params?`<div class="alias" style="color:var(--slate)">${esc(t.params)}</div>`:''}</td>
         <td style="font-size:12.5px">${esc(t.method||'—')}${t.lab?`<div style="color:var(--muted)">${esc(t.lab)}</div>`:''}</td>
         <td style="font-size:12.5px">${esc(t.analyst||'—')}</td>
@@ -1185,12 +1191,47 @@ function labelCopiesValue(v){
 function labelFooterText(){
   return String((DB.cfg && DB.cfg.labelFooter) || 'LTO POLIBAN').trim() || 'LTO POLIBAN';
 }
+function isPyroTestCategory(cat){
+  return PYRO_TEST_CATS.includes(String(cat || '').trim());
+}
+function sampleTypeText(type){
+  return TYPES[type] || type || '—';
+}
+function buildTestQrPayload(sample, cfg={}){
+  if(!sample) return '';
+  const category = String(cfg.category || '').trim();
+  const temp = String(cfg.temp || '').trim();
+  const rate = String(cfg.rate || '').trim();
+  const hold = String(cfg.hold || '').trim();
+  const lines = [
+    'SITRAS UJI',
+    'Kode: ' + sample.id,
+    'Tipe: ' + sampleTypeText(sample.type),
+  ];
+  if(sample.alias) lines.push('Alias: ' + sample.alias);
+  if(category) lines.push('Uji: ' + category);
+  if(isPyroTestCategory(category)){
+    if(temp) lines.push('Suhu: ' + temp + '°C');
+    if(rate) lines.push('Laju: ' + rate + '°C/min');
+    if(hold) lines.push('Tahan: ' + hold + ' min');
+  }
+  if(sample.loc) lines.push('Lokasi: ' + sample.loc);
+  return lines.join('\n');
+}
 function labelContextLine(s){
   const parts = [];
   if(s.run) parts.push('Run ' + s.run);
   if(!s.run && s.parent) parts.push('Induk ' + s.parent);
   if(s.loc) parts.push(s.loc);
-  return parts.slice(0,2).join(' · ');
+  return parts.slice(0,2).join(' - ');
+}
+function thermalExtraLine(s){
+  const parts = [];
+  if(s.alias) parts.push(s.alias);
+  if(s.loc) parts.push(s.loc);
+  else if(s.run) parts.push('Run ' + s.run);
+  else if(s.parent) parts.push('Induk ' + s.parent);
+  return parts.slice(0,2).join(' Â· ');
 }
 function regLabelPrefs(){
   return {
@@ -1285,7 +1326,7 @@ function setPrintPageStyle(mode){
 }
 function labelHTML_A4(job){
   const s = job.sample;
-  const ctx = labelContextLine(s);
+  const extra = thermalExtraLine(s);
   return `<div class="lbl"><div class="qh" id="lq-${esc(job.key)}"></div>
     <div class="qt">
       <div class="lc">${esc(s.id)}</div>
@@ -1297,16 +1338,15 @@ function labelHTML_A4(job){
 function labelHTML_T(job){
   const s = job.sample;
   const mat = esc((MATERIALS[s.material]||s.material||'').split(' (')[0]);
-  const ctx = labelContextLine(s);
+  const extra = thermalExtraLine(s);
   return `<div class="lbl-t">
     <div class="tc">${esc(s.id)}</div>
     <div class="row">
       <div class="qbox" id="lq-${esc(job.key)}"></div>
       <div class="info">
-        ${s.alias?`<div class="a">${esc(s.alias)}</div>`:''}
         <div class="m">${mat} · ${esc(s.type)}</div>
+        ${extra?`<div class="a">${esc(extra)}</div>`:''}
         <div class="d">Reg: ${esc(fmtDate(s.regDate))}</div>
-        ${ctx?`<div class="d">${esc(ctx)}</div>`:''}
         <div class="o">${esc(job.footer)}</div>
       </div>
     </div></div>`;
@@ -1321,7 +1361,7 @@ async function doPrint(codes, mode, copies, footer){
   if(mode==='thermal'){
     area.className='thermal';
     area.innerHTML = jobs.map(labelHTML_T).join('');
-    jobs.forEach(job=> makeQR(document.getElementById('lq-'+job.key), qrText(job.sample), 240, (typeof QRCode!=='undefined'?QRCode.CorrectLevel.L:null)));
+    jobs.forEach(job=> makeQR(document.getElementById('lq-'+job.key), qrText(job.sample), 216, (typeof QRCode!=='undefined'?QRCode.CorrectLevel.L:null)));
   } else {
     area.className='sheet';
     area.innerHTML = `<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;margin-bottom:6mm;color:#333">Label Sampel — ${esc(DB.cfg.labName||DEFAULT_LAB_NAME)} · dicetak ${new Date().toLocaleString('id-ID')}</div><div class="lbl-grid">${jobs.map(labelHTML_A4).join('')}</div>`;
@@ -1474,15 +1514,41 @@ function openTest(presetCode, editId){
     <div class="modal-h"><h3>${ed?'Edit Pengujian':'Catat Pengujian / Pemakaian'}</h3><button class="x" onclick="App.closeModal()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
     <div class="modal-b">
       <div class="grid2">
-        <div class="field"><label>Sampel <span class="req">*</span></label><select id="t_sample" class="mono">${opts}</select></div>
-        <div class="field"><label>Jenis uji <span class="req">*</span></label><select id="t_cat" onchange="App._catChange()">${TEST_CATS.map(c=>`<option ${ed&&ed.category===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+        <div class="field"><label>Sampel <span class="req">*</span></label><select id="t_sample" class="mono" onchange="App._refreshTestPreview()">${opts}</select></div>
+        <div class="field"><label>Jenis uji <span class="req">*</span></label><select id="t_cat" onchange="App._catChange();App._refreshTestPreview()">${TEST_CATS.map(c=>`<option ${ed&&ed.category===c?'selected':''}>${esc(c)}</option>`).join('')}</select></div>
+      </div>
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-h"><h3>Identitas Sampel & QR Proses</h3><span class="micro">memudahkan pemilihan saat pyrolysis</span></div>
+        <div class="card-b" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+          <div style="flex:1;min-width:260px">
+            <div class="grid2">
+              <div class="field"><label>Kode sampel</label><input type="text" class="mono" id="t_previewCode" readonly></div>
+              <div class="field"><label>Tipe sampel</label><input type="text" id="t_previewType" readonly></div>
+            </div>
+            <div class="grid2">
+              <div class="field"><label>Alias / kode lokal</label><input type="text" class="mono" id="t_previewAlias" readonly></div>
+              <div class="field"><label>Material</label><input type="text" id="t_previewMaterial" readonly></div>
+            </div>
+            <div class="grid2">
+              <div class="field"><label>Lokasi sampel</label><input type="text" id="t_previewLoc" readonly></div>
+              <div class="field"><label>Status sampel</label><input type="text" id="t_previewStatus" readonly></div>
+            </div>
+            <div class="field" style="margin-bottom:0"><label>Data QR proses</label><textarea id="t_qrData" class="mono" readonly style="min-height:106px"></textarea></div>
+          </div>
+          <div style="flex:0 0 168px">
+            <div class="qrbox">
+              <div class="qr-render" id="testFormQR"></div>
+              <div class="micro" style="text-align:center">QR ini memuat kode, tipe sampel, dan parameter pyrolysis yang dipilih.</div>
+            </div>
+          </div>
+        </div>
       </div>
       <div id="pyroFields" style="display:none">
         <div class="callout" style="margin-top:0"><b>Parameter RSM-CCD</b> — faktor proses pirolisis.</div>
         <div class="grid3">
-          <div class="field"><label>Suhu (°C)</label><input type="number" step="any" id="t_temp" placeholder="450–550"></div>
-          <div class="field"><label>Laju (°C/min)</label><input type="number" step="any" id="t_rate" placeholder="5–15"></div>
-          <div class="field"><label>Waktu tahan (min)</label><input type="number" step="any" id="t_hold" placeholder="30–90"></div>
+          <div class="field"><label>Suhu (°C)</label><input type="number" step="any" id="t_temp" placeholder="450–550" oninput="App._refreshTestPreview()"></div>
+          <div class="field"><label>Laju (°C/min)</label><input type="number" step="any" id="t_rate" placeholder="5–15" oninput="App._refreshTestPreview()"></div>
+          <div class="field"><label>Waktu tahan (min)</label><input type="number" step="any" id="t_hold" placeholder="30–90" oninput="App._refreshTestPreview()"></div>
         </div>
       </div>
       <div class="grid2">
@@ -1509,19 +1575,49 @@ function openTest(presetCode, editId){
       <button class="btn pri" onclick="App._saveTest('${ed?esc(ed.id):''}')">${ed?'Simpan':'Catat'}</button>
     </div>
   `);
-  if(ed){ // isi field pirolisis
-    if(ed.category==='Pirolisis (RSM-CCD run)'){ $('#pyroFields').style.display='block'; if(ed.temp)$('#t_temp').value=ed.temp; if(ed.rate)$('#t_rate').value=ed.rate; if(ed.hold)$('#t_hold').value=ed.hold; }
+  if(ed){ // isi field pirolisis / pyrolysis
+    if(isPyroTestCategory(ed.category)){ $('#pyroFields').style.display='block'; if(ed.temp)$('#t_temp').value=ed.temp; if(ed.rate)$('#t_rate').value=ed.rate; if(ed.hold)$('#t_hold').value=ed.hold; }
   }
   _catChange();
+  _refreshTestPreview();
 }
 function _catChange(){
   const c=$('#t_cat')&&$('#t_cat').value;
-  if($('#pyroFields')) $('#pyroFields').style.display = (c==='Pirolisis (RSM-CCD run)')?'block':'none';
+  if($('#pyroFields')) $('#pyroFields').style.display = isPyroTestCategory(c)?'block':'none';
+}
+function _refreshTestPreview(){
+  const codeEl = $('#t_sample');
+  const catEl = $('#t_cat');
+  const qrBox = $('#testFormQR');
+  const sample = codeEl ? DB.samples.find(x=>x.id===codeEl.value) : null;
+  const category = catEl ? catEl.value : '';
+  const payload = buildTestQrPayload(sample, {
+    category,
+    temp: $('#t_temp') ? $('#t_temp').value : '',
+    rate: $('#t_rate') ? $('#t_rate').value : '',
+    hold: $('#t_hold') ? $('#t_hold').value : '',
+  });
+  if($('#t_previewCode')) $('#t_previewCode').value = sample ? sample.id : '';
+  if($('#t_previewType')) $('#t_previewType').value = sample ? `${sample.type||'—'} — ${sampleTypeText(sample.type)}` : '';
+  if($('#t_previewAlias')) $('#t_previewAlias').value = sample ? (sample.alias||'') : '';
+  if($('#t_previewMaterial')) $('#t_previewMaterial').value = sample ? (MATERIALS[sample.material]||sample.material||'') : '';
+  if($('#t_previewLoc')) $('#t_previewLoc').value = sample ? (sample.loc||'') : '';
+  if($('#t_previewStatus')) $('#t_previewStatus').value = sample ? (sample.status||'') : '';
+  if($('#t_qrData')) $('#t_qrData').value = payload || '';
+  if(qrBox){
+    if(payload){
+      qrBox.style.opacity = '1';
+      makeQR(qrBox, payload, 128, (typeof QRCode!=='undefined'?QRCode.CorrectLevel.M:null));
+    }else{
+      qrBox.style.opacity = '.6';
+      qrBox.innerHTML = '<div style="width:128px;height:128px;display:grid;place-items:center;color:var(--muted);font-size:11px;text-align:center" class="mono">pilih sampel<br>untuk QR</div>';
+    }
+  }
 }
 function _saveTest(editId){
   const sampleCode=$('#t_sample').value, cat=$('#t_cat').value;
   if(!sampleCode){ toast('Pilih sampel','err'); return; }
-  const isPyro = cat==='Pirolisis (RSM-CCD run)';
+  const isPyro = isPyroTestCategory(cat);
   const obj = {
     sampleCode, category:cat, method:$('#t_method').value.trim(), lab:$('#t_lab').value.trim(),
     analyst:$('#t_analyst').value.trim(), status:$('#t_status').value, dateStart:$('#t_start').value, dateEnd:$('#t_end').value,
@@ -1530,6 +1626,8 @@ function _saveTest(editId){
     params: isPyro? [$('#t_temp').value&&($('#t_temp').value+'°C'), $('#t_rate').value&&($('#t_rate').value+'°C/min'), $('#t_hold').value&&($('#t_hold').value+' min')].filter(Boolean).join(' · ') : ''
   };
   const s=DB.samples.find(x=>x.id===sampleCode);
+  obj.sampleType = s ? (s.type || '') : '';
+  obj.qrData = buildTestQrPayload(s, { category:cat, temp:obj.temp, rate:obj.rate, hold:obj.hold });
   if(editId){
     const t=DB.tests.find(x=>x.id===editId);
     // koreksi stok: kembalikan massa lama lalu kurangi massa baru
@@ -2355,7 +2453,7 @@ const App = {
   openSyncGuide:()=>nav('guide'),
   openSyncHub,
   saveSample, editSample, delSample, _saveEdit, _confirmDel,
-  openTest, _saveTest, _delTest, _catChange,
+  openTest, _saveTest, _delTest, _catChange, _refreshTestPreview,
   openMove, _saveMove, _moveAction,
   setFilter, globalSearch,
   printPicker, printOne, _pickAll, _printSelected,
