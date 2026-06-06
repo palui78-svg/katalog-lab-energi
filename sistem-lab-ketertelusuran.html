@@ -213,20 +213,22 @@ textarea{resize:vertical; min-height:64px}
 
 /* print labels */
 #print-area{display:none}
+body.printing{background:#fff}
 @media print{
+  html, body{background:#fff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact}
   /* sembunyikan seluruh antarmuka; hanya area cetak yang tampil (display, bukan visibility,
      agar paginasi stiker termal tidak menyisakan halaman kosong) */
   body.printing > *{ display:none !important; }
   body.printing #print-area{ display:block !important; }
+  #print-area, #print-area *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
 
   /* Mode lembar A4 (grid label) */
   #print-area.sheet{ padding:8mm; }
-  @page{ margin:8mm; }
+  @page{ size:A4 portrait; margin:8mm; }
 
   /* Mode termal 40×40 mm */
-  @page thermal{ size:40mm 40mm; margin:0; }
-  #print-area.thermal{ padding:0; }
-  #print-area.thermal .lbl-t{ page:thermal; }
+  #print-area.thermal{ padding:0; width:40mm; margin:0; }
+  /* Ukuran final mode termal dipaksa ulang oleh JS sebelum print dibuka */
 }
 /* --- label A4 (grid) --- */
 .lbl-grid{display:grid; grid-template-columns:repeat(3, 1fr); gap:6mm}
@@ -239,15 +241,15 @@ textarea{resize:vertical; min-height:64px}
 .lbl .qt .ls{font-size:7.5px; color:#555; margin-top:3px; letter-spacing:.04em; text-transform:uppercase}
 /* --- label termal 40×40 mm (teks hitam pekat utk printer termal) --- */
 .lbl-t{ width:40mm; height:40mm; box-sizing:border-box; overflow:hidden; background:#fff; color:#000;
-        font-family:"IBM Plex Mono",monospace; padding:1.8mm 1.8mm;
+        font-family:"IBM Plex Mono",monospace; padding:1.8mm 1.8mm; position:relative; margin:0;
         page-break-after:always; break-after:page; }
 .lbl-t:last-child{ page-break-after:auto; break-after:auto; }
 .lbl-t .tc{ font-weight:700; font-size:2.8mm; line-height:1.02; text-align:center; letter-spacing:-.18px;
             white-space:nowrap; overflow:hidden; color:#000; }
-.lbl-t .row{ display:table; width:100%; table-layout:fixed; margin-top:1.3mm; }
-.lbl-t .qbox{ display:table-cell; width:22mm; height:22mm; vertical-align:middle; }
+.lbl-t .row{ display:flex; align-items:flex-start; gap:1.5mm; width:100%; margin-top:1.3mm; }
+.lbl-t .qbox{ flex:0 0 22mm; width:22mm; height:22mm; display:flex; align-items:center; justify-content:center; }
 .lbl-t .qbox img, .lbl-t .qbox canvas, .lbl-t .qbox table{ width:22mm !important; height:22mm !important; display:block; image-rendering:pixelated; }
-.lbl-t .info{ display:table-cell; vertical-align:top; padding-left:1.5mm; line-height:1.2; color:#000; }
+.lbl-t .info{ flex:1 1 auto; min-width:0; line-height:1.2; color:#000; }
 .lbl-t .info .a{ font-size:2.05mm; font-weight:700; color:#000; word-break:break-word; }
 .lbl-t .info .m{ font-size:1.9mm; color:#000; word-break:break-word; margin-top:.4mm; }
 .lbl-t .info .d{ font-size:1.75mm; color:#000; margin-top:.35mm; }
@@ -343,17 +345,49 @@ const TEST_STATUS = {
 const TEST_CATS = ['Proksimat','Ultimat (CHNS-O)','FTIR-ATR','Pirolisis (RSM-CCD run)','Nilai kalor (HHV)','Kadar air','Densitas / bulk density','GC-MS bio-oil','Bilangan asam','Lainnya'];
 const STORAGE_COND = ['Suhu ruang','Desikator','Lemari asam','Kulkas 4°C','Freezer -20°C','Botol gelap','Vakum / kedap'];
 
-/* ---------- Lapisan penyimpanan (window.storage + fallback memori) ---------- */
+/* ---------- Lapisan penyimpanan (window.storage + localStorage + fallback memori) ---------- */
+function hasLocalStore(){
+  try{
+    const s = window.localStorage;
+    if(!s) return false;
+    const probe = '__sitras_probe__';
+    s.setItem(probe, '1');
+    s.removeItem(probe);
+    return true;
+  }catch(e){
+    return false;
+  }
+}
 const Store = {
   mem:{},
   async get(key){
-    try{ if(window.storage&&window.storage.get){ const r=await window.storage.get(key); if(r&&r.value!=null) return JSON.parse(r.value); } }
+    try{
+      if(window.storage&&window.storage.get){
+        const r=await window.storage.get(key);
+        if(r&&r.value!=null) return JSON.parse(r.value);
+      }
+    }
     catch(e){/* key tidak ada / storage off → fallback */}
+    try{
+      if(hasLocalStore()){
+        const raw = window.localStorage.getItem(key);
+        if(raw!=null) return JSON.parse(raw);
+      }
+    }catch(e){/* localStorage off â†’ fallback */}
     return (key in this.mem)? this.mem[key] : null;
   },
   async set(key,val){
     this.mem[key]=val;
-    try{ if(window.storage&&window.storage.set){ await window.storage.set(key, JSON.stringify(val)); } }catch(e){/* memori saja */}
+    try{
+      if(window.storage&&window.storage.set){
+        await window.storage.set(key, JSON.stringify(val));
+      }
+    }catch(e){/* lanjut ke localStorage / memori */}
+    try{
+      if(hasLocalStore()){
+        window.localStorage.setItem(key, JSON.stringify(val));
+      }
+    }catch(e){/* memori saja */}
     return val;
   }
 };
@@ -375,7 +409,9 @@ const GitHubSync = {timer:null, busy:false, pending:false, lastError:'', lastErr
 const SHEET_SYNC_SCHEMA='sitras-sheet-sync';
 const SHEET_SYNC_VERSION=1;
 const GSHEET_SYNC_DELAY_MS=1200;
-const DEFAULT_SHEET_WRITE_URL='https://script.google.com/macros/s/AKfycbz0TbXdQINlYtVYTbG_Zk-O2VqEYpcGHhRE9hyuFLVDSAXEI6KnWvygFRT5kmThZc5S/exec';
+const LEGACY_SHEET_WRITE_URL='https://script.google.com/macros/s/AKfycbz0TbXdQINlYtVYTbG_Zk-O2VqEYpcGHhRE9hyuFLVDSAXEI6KnWvygFRT5kmThZc5S/exec';
+const LEGACY_SHEET_WRITE_URL_2='https://script.google.com/macros/s/AKfycbwmEE6Hy5REc31bggRGW8NaL5CM4DPLjXdgrw_pFIP0zuQ3_ml-4YJl2_eZCd3Czefk/exec';
+const DEFAULT_SHEET_WRITE_URL='https://script.google.com/macros/s/AKfycbwmEE6Hy5REc31bggRGW8NaL5CM4DPLjXdgrw_pFIP0zuQ3_mI-4YJl2_eZCd3Czefk/exec';
 const DEFAULT_LAB_NAME='Lab Energi Terbarukan POLIBAN';
 const DEFAULT_LAB_SUB='Politeknik Negeri Banjarmasin · Ketertelusuran Sampel (SITRAS) · ISO/IEC 17025';
 const SheetSync = {timer:null, busy:false, pending:false, lastError:'', lastErrorAt:0};
@@ -433,6 +469,8 @@ function cfgDefaults(cfg){
   if(!hasOwn(next,'githubAutoSync')) next.githubAutoSync = false;
   if(!hasOwn(next,'githubAutoPull')) next.githubAutoPull = false;
   if(!hasOwn(next,'sheetWriteUrl') || !String(next.sheetWriteUrl||'').trim()) next.sheetWriteUrl = DEFAULT_SHEET_WRITE_URL;
+  if(String(next.sheetWriteUrl||'').trim()===LEGACY_SHEET_WRITE_URL) next.sheetWriteUrl = DEFAULT_SHEET_WRITE_URL;
+  if(String(next.sheetWriteUrl||'').trim()===LEGACY_SHEET_WRITE_URL_2) next.sheetWriteUrl = DEFAULT_SHEET_WRITE_URL;
   if(!hasOwn(next,'sheetWriteToken')) next.sheetWriteToken = '';
   if(!hasOwn(next,'sheetWriteAutoSync')) next.sheetWriteAutoSync = true;
   if(!hasOwn(next,'labelModeDefault') || !['thermal','a4'].includes(next.labelModeDefault)) next.labelModeDefault = 'thermal';
@@ -456,6 +494,8 @@ async function loadDB(){
   }
   if(hasGitHubSource() && DB.cfg.githubAutoPull!==false){
     await pullFromGitHub({manual:false, quiet:true, renderAfter:false});
+  }else if(!hasAnyData() && hasSheetWriteTarget()){
+    await pullFromGoogleSheetsSync({manual:false, quiet:true, renderAfter:false, onlyWhenEmpty:true});
   }
 }
 async function save(part, opts={}){
@@ -467,6 +507,9 @@ async function save(part, opts={}){
     scheduleGitHubPush(part);
     scheduleSheetPush(part);
   }
+}
+function hasAnyData(){
+  return !!(DB.samples.length || DB.tests.length || DB.movements.length);
 }
 
 /* ---------- Generator kode sampel ----------
@@ -1185,6 +1228,61 @@ function buildPrintJobs(codes, copies, footer){
   });
   return jobs;
 }
+let PRINT_BUSY = false;
+let PRINT_CLEANUP_TIMER = 0;
+let PRINT_HOOKS_READY = false;
+let PRINT_MEDIA_QUERY = null;
+function resetPrintTimer(){
+  if(!PRINT_CLEANUP_TIMER) return;
+  clearTimeout(PRINT_CLEANUP_TIMER);
+  PRINT_CLEANUP_TIMER = 0;
+}
+function cleanupPrintState(){
+  document.body.classList.remove('printing');
+  resetPrintTimer();
+  PRINT_BUSY = false;
+}
+function ensurePrintHooks(){
+  if(PRINT_HOOKS_READY) return;
+  window.addEventListener('afterprint', cleanupPrintState);
+  if(window.matchMedia){
+    PRINT_MEDIA_QUERY = window.matchMedia('print');
+    const handlePrintMedia = ev => { if(!ev.matches) cleanupPrintState(); };
+    if(PRINT_MEDIA_QUERY && typeof PRINT_MEDIA_QUERY.addEventListener === 'function') PRINT_MEDIA_QUERY.addEventListener('change', handlePrintMedia);
+    else if(PRINT_MEDIA_QUERY && typeof PRINT_MEDIA_QUERY.addListener === 'function') PRINT_MEDIA_QUERY.addListener(handlePrintMedia);
+  }
+  PRINT_HOOKS_READY = true;
+}
+function waitForPrintPaint(){
+  return new Promise(resolve=>{
+    requestAnimationFrame(()=>requestAnimationFrame(resolve));
+  });
+}
+function printPageCss(mode){
+  if(mode==='thermal'){
+    return `@media print{
+      @page{ size:40mm 40mm; margin:0; }
+      html, body{ width:40mm !important; margin:0 !important; padding:0 !important; overflow:visible !important; }
+      #print-area.thermal{ width:40mm !important; margin:0 !important; padding:0 !important; }
+      #print-area.thermal .lbl-t{ width:40mm !important; height:40mm !important; margin:0 !important; page-break-after:always !important; break-after:page !important; }
+      #print-area.thermal .lbl-t:last-child{ page-break-after:auto !important; break-after:auto !important; }
+    }`;
+  }
+  return `@media print{
+    @page{ size:A4 portrait; margin:8mm; }
+    html, body{ margin:0 !important; padding:0 !important; }
+    #print-area.sheet{ padding:8mm !important; width:auto !important; margin:0 !important; }
+  }`;
+}
+function setPrintPageStyle(mode){
+  let styleEl = document.getElementById('print-page-style');
+  if(!styleEl){
+    styleEl = document.createElement('style');
+    styleEl.id = 'print-page-style';
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = printPageCss(mode);
+}
 function labelHTML_A4(job){
   const s = job.sample;
   const ctx = labelContextLine(s);
@@ -1213,8 +1311,10 @@ function labelHTML_T(job){
       </div>
     </div></div>`;
 }
-function doPrint(codes, mode, copies, footer){
+async function doPrint(codes, mode, copies, footer){
   mode = labelModeValue(mode || DB.cfg.labelModeDefault);
+  if(PRINT_BUSY){ toast('Dialog printer masih aktif. Tutup dulu lalu coba lagi.','err'); return; }
+  setPrintPageStyle(mode);
   const jobs = buildPrintJobs(codes, copies, footer);
   if(!jobs.length){ toast('Tidak ada sampel dipilih','err'); return; }
   const area=$('#print-area');
@@ -1227,15 +1327,23 @@ function doPrint(codes, mode, copies, footer){
     area.innerHTML = `<div style="font-family:'IBM Plex Mono',monospace;font-size:11px;margin-bottom:6mm;color:#333">Label Sampel — ${esc(DB.cfg.labName||DEFAULT_LAB_NAME)} · dicetak ${new Date().toLocaleString('id-ID')}</div><div class="lbl-grid">${jobs.map(labelHTML_A4).join('')}</div>`;
     jobs.forEach(job=> makeQR(document.getElementById('lq-'+job.key), qrText(job.sample), 78));
   }
+  ensurePrintHooks();
+  cleanupPrintState();
+  PRINT_BUSY = true;
   document.body.classList.add('printing');
-  const done=()=>{ document.body.classList.remove('printing'); window.removeEventListener('afterprint',done); };
-  window.addEventListener('afterprint', done);
-  setTimeout(()=>{ window.print(); }, 350);
+  await waitForPrintPaint();
+  PRINT_CLEANUP_TIMER = setTimeout(cleanupPrintState, 15000);
+  try{
+    window.print();
+  } catch(err){
+    cleanupPrintState();
+    toast('Dialog printer gagal dibuka','err');
+  }
 }
 function printOne(code){
   const mode = labelModeValue(DB.cfg.labelModeDefault);
   const copies = labelCopiesValue(DB.cfg.labelCopiesDefault);
-  toast(mode==='thermal' ? 'Cek setelan: kertas 40x40, Margins None, Headers/footers off' : 'Siapkan printer A4 dan pastikan skala 100%');
+  toast(mode==='thermal' ? 'Mode termal 40x40: skala 100%, margin none, header/footer off, pilih paper size 40x40 di driver printer' : 'Mode A4: kertas A4 portrait, skala 100%, margin default aplikasi');
   doPrint([code], mode, copies, labelFooterText());
 }
 function printPicker(){
@@ -1768,6 +1876,7 @@ async function saveGitHubConfig(){
 }
 async function openSyncHub(){
   if(hasGitHubSource()) return pullFromGitHub();
+  if(hasSheetWriteTarget()) return pullFromGoogleSheetsSync();
   nav('guide');
   return false;
 }
@@ -1919,6 +2028,18 @@ async function pushToGitHub({manual=true, reason='manual'}={}){
 function sheetWriteUrl(){ return gitTrim(DB.cfg.sheetWriteUrl); }
 function sheetWriteToken(){ return gitTrim(DB.cfg.sheetWriteToken); }
 function hasSheetWriteTarget(){ return !!sheetWriteUrl(); }
+function isLikelyAppsScriptExecUrl(url){
+  return /^https:\/\/script\.google\.com\/macros\/s\/[^\/]+\/exec(?:[?#].*)?$/i.test(String(url||'').trim());
+}
+function sheetUrlHelpText(){
+  return 'URL Web App Google Sheets belum benar atau deployment belum aktif. Klik "Salin" pada URL Aplikasi web di Apps Script, lalu tempel lagi URL yang berakhir /exec.';
+}
+function sheetReadUrl(){
+  if(!hasSheetWriteTarget()) return '';
+  const sep = sheetWriteUrl().indexOf('?') >= 0 ? '&' : '?';
+  const token = sheetWriteToken();
+  return `${sheetWriteUrl()}${sep}action=export${token ? `&token=${encodeURIComponent(token)}` : ''}`;
+}
 function sheetTargetSummary(){
   if(!hasSheetWriteTarget()) return 'Belum dikonfigurasi.';
   const raw = sheetWriteUrl().replace(/^https?:\/\//,'');
@@ -1926,6 +2047,7 @@ function sheetTargetSummary(){
 }
 function sheetStatusText(){
   const parts = [];
+  if(DB.cfg.lastSheetPull) parts.push(`tarik ${fmtDT(DB.cfg.lastSheetPull)}`);
   if(DB.cfg.lastSheetPush) parts.push(`kirim ${fmtDT(DB.cfg.lastSheetPush)}`);
   if(DB.cfg.lastSheetSummary) parts.push(DB.cfg.lastSheetSummary);
   if(!parts.length) return 'Belum pernah sinkron.';
@@ -1942,7 +2064,7 @@ async function saveSheetSyncConfig(){
   captureSheetSyncConfigFromForm();
   DB.cfg = cfgDefaults(DB.cfg);
   await save('CFG',{skipRemote:true});
-  toast('Konfigurasi Google Sheets live sync disimpan');
+  toast(isLikelyAppsScriptExecUrl(DB.cfg.sheetWriteUrl) ? 'Konfigurasi Google Sheets live sync disimpan' : sheetUrlHelpText(), isLikelyAppsScriptExecUrl(DB.cfg.sheetWriteUrl) ? 'ok' : 'err');
   if(VIEW==='guide') render();
 }
 function serializeSheetSyncDb(reason){
@@ -1960,6 +2082,17 @@ function serializeSheetSyncDb(reason){
   const token = sheetWriteToken();
   if(token) payload.token = token;
   return payload;
+}
+function applySheetSyncDb(payload){
+  if(!payload || typeof payload!=='object') throw new Error('Format data Google Sheets tidak valid');
+  if(payload.ok===false) throw new Error(payload.message || 'Google Sheets mengembalikan error');
+  if(payload.schema !== SHEET_SYNC_SCHEMA) throw new Error('Endpoint Google Sheets belum mengirim database SITRAS. Redeploy Apps Script terbaru dulu.');
+  DB.samples = Array.isArray(payload.samples) ? payload.samples : [];
+  DB.tests = Array.isArray(payload.tests) ? payload.tests : [];
+  DB.movements = Array.isArray(payload.movements) ? payload.movements : [];
+  const shared = (payload.sharedConfig && typeof payload.sharedConfig==='object') ? payload.sharedConfig : {};
+  if(hasOwn(shared,'origin') && shared.origin) DB.cfg.origin = shared.origin;
+  if(hasOwn(shared,'qrUrl')) DB.cfg.qrUrl = shared.qrUrl;
 }
 function reportSheetError(message, manual){
   const text = String(message||'Sinkron Google Sheets gagal');
@@ -1986,10 +2119,53 @@ function scheduleSheetPush(reason){
     pushToGoogleSheets({manual:false, reason:reason||'autosave'});
   }, GSHEET_SYNC_DELAY_MS);
 }
+async function pullFromGoogleSheetsSync({manual=true, quiet=false, renderAfter=true, onlyWhenEmpty=false}={}){
+  if(!hasSheetWriteTarget()){
+    if(manual && !quiet) toast('URL Web App Google Sheets belum diisi','err');
+    return false;
+  }
+  if(!isLikelyAppsScriptExecUrl(sheetWriteUrl())){
+    if(!quiet) reportSheetError(sheetUrlHelpText(), manual);
+    return false;
+  }
+  if(onlyWhenEmpty && hasAnyData()) return false;
+  try{
+    const res = await fetch(sheetReadUrl(), {
+      method:'GET',
+      headers:{'Accept':'application/json, text/plain, */*'},
+      cache:'no-store',
+    });
+    if(!res.ok){
+      if(res.status===404) throw new Error(sheetUrlHelpText());
+      const txt = await res.text();
+      throw new Error(`Gagal memuat data Google Sheets (HTTP ${res.status})${txt ? ': '+txt.slice(0,160) : ''}`);
+    }
+    const out = await res.json();
+    applySheetSyncDb(out);
+    DB.cfg.lastSheetPull = new Date().toISOString();
+    DB.cfg.lastSheetSummary = out && out.summary ? String(out.summary) : `${DB.samples.length} sampel Â· ${DB.tests.length} uji Â· ${DB.movements.length} log`;
+    delete DB.cfg.lastSheetError;
+    await save('S',{skipRemote:true});
+    await save('T',{skipRemote:true});
+    await save('M',{skipRemote:true});
+    DB.cfg.lastSync = DB.cfg.lastSheetPull;
+    await save('CFG',{skipRemote:true});
+    if(renderAfter) render();
+    if(manual && !quiet) toast(`Data Google Sheets dimuat: ${DB.samples.length} sampel`);
+    return true;
+  }catch(e){
+    if(!quiet) reportSheetError(e.message||e, manual);
+    return false;
+  }
+}
 async function pushToGoogleSheets({manual=true, reason='manual'}={}){
   if(captureSheetSyncConfigFromForm()) await save('CFG',{skipRemote:true});
   if(!hasSheetWriteTarget()){
     if(manual) toast('URL Web App Google Sheets belum diisi','err');
+    return false;
+  }
+  if(!isLikelyAppsScriptExecUrl(sheetWriteUrl())){
+    if(manual) toast(sheetUrlHelpText(),'err');
     return false;
   }
   if(SheetSync.busy){
@@ -2013,6 +2189,7 @@ async function pushToGoogleSheets({manual=true, reason='manual'}={}){
     let out = null;
     try{ out = txt ? JSON.parse(txt) : null; }catch(e){ out = null; }
     if(!res.ok){
+      if(res.status===404) throw new Error(sheetUrlHelpText());
       throw new Error(`Gagal mengirim data ke Google Sheets (HTTP ${res.status})${txt ? ': '+txt.slice(0,160) : ''}`);
     }
     if(out && out.ok===false){
