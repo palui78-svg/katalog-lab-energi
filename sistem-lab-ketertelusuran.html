@@ -405,7 +405,8 @@ let DB = {samples:[], tests:[], movements:[], cfg:{}};
 /* Sumber data & QR bawaan (silakan ganti bila URL berubah) */
 const LEGACY_DEFAULT_SHEET_BI='https://docs.google.com/spreadsheets/d/e/2PACX-1vQtKOl4UaFAFRdpgp_sHZiumtOWthyBt3lsA0kMocfuJkUD_wZxTx0uoAo61NSpHh9iiCE7gqrmpgiS/pub?gid=394958894&single=true&output=csv';
 const DEFAULT_SHEET_BI='';
-const DEFAULT_QR_URL='https://palui78.github.io/katalog-lab-energi/?kode={kode}';
+const LEGACY_DEFAULT_QR_URL='https://palui78.github.io/katalog-lab-energi/?kode={kode}';
+const DEFAULT_QR_URL='https://palui78-svg.github.io/katalog-lab-energi/?kode={kode}';
 const DEFAULT_GITHUB_BRANCH='main';
 const DEFAULT_GITHUB_PATH='data/sitras-db.json';
 const DB_SCHEMA='sitras-db';
@@ -469,6 +470,7 @@ function cfgDefaults(cfg){
   if(!hasOwn(next,'labName') || !String(next.labName||'').trim()) next.labName = DEFAULT_LAB_NAME;
   if(!hasOwn(next,'labSub')  || !String(next.labSub||'').trim())  next.labSub  = DEFAULT_LAB_SUB;
   if(!hasOwn(next,'qrUrl')) next.qrUrl = DEFAULT_QR_URL;
+  else if(String(next.qrUrl||'').trim()===LEGACY_DEFAULT_QR_URL) next.qrUrl = DEFAULT_QR_URL;
   if(!hasOwn(next,'sheetBI')) next.sheetBI = DEFAULT_SHEET_BI;
   if(!hasOwn(next,'sheetUJI')) next.sheetUJI = '';
   if(!hasOwn(next,'sheetLOG')) next.sheetLOG = '';
@@ -1180,9 +1182,30 @@ $('#globalSearch')&&$('#globalSearch').addEventListener('keydown', e=>{
 /* ============================================================
    QR
    ============================================================ */
-function qrTextFromCode(code){
+function qrBaseUrlForCode(code){
   const t = (DB.cfg && DB.cfg.qrUrl || '').trim();
   if(t && t.indexOf('{kode}')>=0 && code && code!=='Ã¢â‚¬â€') return t.replace('{kode}', encodeURIComponent(code));
+  return '';
+}
+function appendQrParams(url, extra={}){
+  if(!url) return '';
+  try{
+    const u = new URL(url, location.href);
+    Object.entries(extra).forEach(([k,v])=>{
+      if(v==null) return;
+      const text = String(v).trim();
+      if(text) u.searchParams.set(k, text);
+    });
+    return u.toString();
+  }catch(e){
+    const parts = Object.entries(extra).filter(([,v])=>v!=null && String(v).trim()!=='').map(([k,v])=>`${encodeURIComponent(k)}=${encodeURIComponent(String(v).trim())}`);
+    if(!parts.length) return url;
+    return url + (url.indexOf('?')>=0 ? '&' : '?') + parts.join('&');
+  }
+}
+function qrTextFromCode(code){
+  const t = qrBaseUrlForCode(code);
+  if(t) return t;
   return code;                       // mode lokal: QR memuat kode saja
 }
 function qrText(s){ return qrTextFromCode(s.id); }  // kode, atau URL berisi kode (lihat Panduan)
@@ -1336,10 +1359,27 @@ function buildTestQrPayload(sample, cfg={}){
   if(sample.loc) lines.push('Lokasi: ' + sample.loc);
   return lines.join('\n');
 }
+function buildTestQrLink(sample, cfg={}){
+  if(!sample) return '';
+  const base = qrBaseUrlForCode(sample.id);
+  if(!base) return '';
+  const pyro = resolvePyroContext(sample, cfg);
+  if(!pyro.isPyro) return base;
+  return appendQrParams(base, {
+    pc: pyro.processCode || '',
+    rb: pyro.processCode ? '' : formatRunCode(pyro.runCode),
+  });
+}
 function labelQrText(sample){
   const pyro = resolvePyroContext(sample, {});
   if(pyro.isPyro){
-    return buildTestQrPayload(sample, {
+    return buildTestQrLink(sample, {
+      category: (pyro.test && pyro.test.category) || 'Pyrolysis (RSM-CCD run)',
+      runCode: pyro.runCode,
+      temp: pyro.temp,
+      rate: pyro.rate,
+      hold: pyro.hold,
+    }) || buildTestQrPayload(sample, {
       category: (pyro.test && pyro.test.category) || 'Pyrolysis (RSM-CCD run)',
       runCode: pyro.runCode,
       temp: pyro.temp,
@@ -1558,7 +1598,7 @@ async function printTestLabelForSample(sample, cfg={}, key='test-process-label')
   if(!sample){ toast('Data sampel tidak ditemukan','err'); return; }
   const area = $('#print-area');
   const footer = labelFooterText();
-  const payload = buildTestQrPayload(sample, cfg);
+  const payload = buildTestQrLink(sample, cfg) || buildTestQrPayload(sample, cfg);
   const job = {sample, cfg, footer, key};
   setPrintPageStyle('thermal');
   if(PRINT_BUSY){ toast('Dialog printer masih aktif. Tutup dulu lalu coba lagi.','err'); return; }
