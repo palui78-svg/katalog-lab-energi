@@ -388,8 +388,8 @@ renderDetail = function(code, scan={}){
   const row=DATA.induk.find(r=>pick(r,F.kode).trim().toUpperCase()===code.toUpperCase());
   if(!row) return renderNotFound(code);
   const matc=pick(row,F.material), tipec=pick(row,F.tipe);
-  const matTxt=matc?(MAT[matc]?matc+' â€” '+MAT[matc]:matc):'';
-  const tipeTxt=tipec?(TIPE[tipec]?tipec+' â€” '+TIPE[tipec]:tipec):'';
+  const matTxt=matc?(MAT[matc]?matc+' - '+MAT[matc]:matc):'';
+  const tipeTxt=tipec?(TIPE[tipec]?tipec+' - '+TIPE[tipec]:tipec):'';
   const induk=pick(row,F.induk);
   const mAwal=pick(row,F.mAwal),mKini=pick(row,F.mKini),sat=pick(row,F.satuan);
   const massa=(mAwal||mKini)?`${esc(mAwal||'?')} &rarr; <b>${esc(mKini||'?')}</b> ${esc(sat||'')}`:'';
@@ -399,7 +399,7 @@ renderDetail = function(code, scan={}){
   const moves=DATA.log.filter(r=>pick(r,FL.kode).trim().toUpperCase()===code.toUpperCase());
   const hasScanProcess = !!(activeScan && (activeScan.pyro || activeScan.processCode || activeScan.runBatch || activeScan.temp || activeScan.rate || activeScan.hold || activeScan.parent));
 
-  let h=`<div class="mb"><a href="${esc(linkFor(''))}">â† Daftar sampel</a></div>`;
+  let h=`<div class="mb"><a href="${esc(linkFor(''))}"><- Daftar sampel</a></div>`;
   h+=`<div class="card mb"><div class="card-b">
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span class="codebig">${esc(pick(row,F.kode))}</span>${pillFor(pick(row,F.status),STATUS)}
@@ -412,7 +412,7 @@ renderDetail = function(code, scan={}){
       ${kv('Tanggal registrasi',esc(pick(row,F.regdate)))}
       ${kv('Sumber / asal lokasi',esc(pick(row,F.sumber)))}
       ${kv('Induk',induk?`<a href="${esc(linkFor(induk))}" class="mono">${esc(induk)}</a>`:'')}
-      ${kv('Massa (awal â†’ kini)',massa)}
+      ${kv('Massa (awal -> kini)',massa)}
       ${kv('Kadar air',kadar?esc(kadar)+'%':'')}
       ${kv('Kondisi sampel',esc(pick(row,F.kondS)))}
       ${kv('Custodian',esc(pick(row,F.cust)))}
@@ -430,8 +430,8 @@ renderDetail = function(code, scan={}){
         ${kv('Kode proses',activeScan.processCode?`<span class="mono">${esc(activeScan.processCode)}</span>`:'')}
         ${kv('Run batch',activeScan.runBatch?`<span class="mono">${esc(activeScan.runBatch)}</span>`:'')}
         ${kv('Induk proses',activeScan.parent?`<span class="mono">${esc(activeScan.parent)}</span>`:'')}
-        ${kv('Suhu',activeScan.temp?esc(activeScan.temp)+' Â°C':'')}
-        ${kv('Laju',activeScan.rate?esc(activeScan.rate)+' Â°C/min':'')}
+        ${kv('Suhu',activeScan.temp?esc(activeScan.temp)+'  C':'')}
+        ${kv('Laju',activeScan.rate?esc(activeScan.rate)+'  C/min':'')}
         ${kv('Waktu tahan',activeScan.hold?esc(activeScan.hold)+' min':'')}
       </div>
     </div></div>`;
@@ -444,7 +444,7 @@ renderDetail = function(code, scan={}){
       tests.forEach(t=>{
         const processLine = [pick(t,FT.process), pick(t,FT.run)].filter(Boolean).join(' · ');
         const paramLine = pick(t,FT.params);
-        h+=`<tr><td><b>${esc(pick(t,FT.kategori))}</b><div class="muted small">${esc(pick(t,FT.metode))}</div>${processLine?`<div class="mono small">${esc(processLine)}</div>`:''}${paramLine?`<div class="muted small">${esc(paramLine)}</div>`:''}</td><td>${esc(pick(t,FT.lab))}</td><td class="mono">${esc(pick(t,FT.cert)||'â€”')}</td><td>${pillFor(pick(t,FT.status),TSTATUS)}</td><td>${esc(pick(t,FT.hasil))}</td></tr>`;
+        h+=`<tr><td><b>${esc(pick(t,FT.kategori))}</b><div class="muted small">${esc(pick(t,FT.metode))}</div>${processLine?`<div class="mono small">${esc(processLine)}</div>`:''}${paramLine?`<div class="muted small">${esc(paramLine)}</div>`:''}</td><td>${esc(pick(t,FT.lab))}</td><td class="mono">${esc(pick(t,FT.cert)||'-')}</td><td>${pillFor(pick(t,FT.status),TSTATUS)}</td><td>${esc(pick(t,FT.hasil))}</td></tr>`;
       });
       h+=`</tbody></table></div>`;
     } else h+=`<div class="card-b muted small">Belum ada entri pengujian untuk kode ini.</div>`;
@@ -454,7 +454,7 @@ renderDetail = function(code, scan={}){
     if(moves.length){
       h+=`<div class="card mb"><div class="card-h"><h3>Riwayat penyimpanan</h3><span class="micro">${moves.length} catatan</span></div>`;
       h+=`<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Waktu</th><th>Aksi</th><th>Dari</th><th>Ke</th><th>Oleh</th><th>Keterangan</th></tr></thead><tbody>`;
-      moves.forEach(m=>{h+=`<tr><td class="mono small">${esc(pick(m,FL.waktu))}</td><td>${esc(pick(m,FL.aksi))}</td><td>${esc(pick(m,FL.dari)||'â€”')}</td><td>${esc(pick(m,FL.ke)||'â€”')}</td><td>${esc(pick(m,FL.oleh))}</td><td>${esc(pick(m,FL.ket))}</td></tr>`;});
+      moves.forEach(m=>{h+=`<tr><td class="mono small">${esc(pick(m,FL.waktu))}</td><td>${esc(pick(m,FL.aksi))}</td><td>${esc(pick(m,FL.dari)||'-')}</td><td>${esc(pick(m,FL.ke)||'-')}</td><td>${esc(pick(m,FL.oleh))}</td><td>${esc(pick(m,FL.ket))}</td></tr>`;});
       h+=`</tbody></table></div></div>`;
     }
   }
