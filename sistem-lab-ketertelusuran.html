@@ -474,6 +474,7 @@ function cfgDefaults(cfg){
   if(!hasOwn(next,'sheetBI')) next.sheetBI = DEFAULT_SHEET_BI;
   if(!hasOwn(next,'sheetUJI')) next.sheetUJI = '';
   if(!hasOwn(next,'sheetLOG')) next.sheetLOG = '';
+  if(!hasOwn(next,'csvAutoPull')) next.csvAutoPull = !!(gitTrim(next.sheetBI) || gitTrim(next.sheetUJI) || gitTrim(next.sheetLOG));
   if(!hasOwn(next,'csvSourceMigrated')) next.csvSourceMigrated = false;
   if(!next.csvSourceMigrated && next.sheetBI===LEGACY_DEFAULT_SHEET_BI){
     next.sheetBI = '';
@@ -507,6 +508,10 @@ async function loadDB(){
   if(JSON.stringify(DB.cfg)!==JSON.stringify(rawCfg)){
     await Store.set(K.CFG, DB.cfg);
   }
+  if(csvAutoPullEnabled()){
+    const pulled = await pullFromCsvSources({manual:false, quiet:true, renderAfter:false});
+    if(pulled) return;
+  }
   if(hasGitHubSource() && DB.cfg.githubAutoPull!==false){
     await pullFromGitHub({manual:false, quiet:true, renderAfter:false});
   }else if(!hasAnyData() && hasSheetWriteTarget()){
@@ -525,6 +530,12 @@ async function save(part, opts={}){
 }
 function hasAnyData(){
   return !!(DB.samples.length || DB.tests.length || DB.movements.length);
+}
+function hasCsvSource(){
+  return !!(gitTrim(DB.cfg.sheetBI) || gitTrim(DB.cfg.sheetUJI) || gitTrim(DB.cfg.sheetLOG));
+}
+function csvAutoPullEnabled(){
+  return !!(DB.cfg.csvAutoPull && hasCsvSource());
 }
 
 /* ---------- Generator kode sampel ----------
@@ -1083,6 +1094,9 @@ function viewGuide(){
         <div class="field"><label>CSV Buku Induk</label><input type="text" class="mono" id="shBI" value="${esc(DB.cfg.sheetBI||'')}" placeholder="https://docs.google.com/.../pub?...output=csv" style="font-size:11px"></div>
         <div class="field"><label>CSV Pengujian (opsional)</label><input type="text" class="mono" id="shUJI" value="${esc(DB.cfg.sheetUJI||'')}" placeholder="...output=csv" style="font-size:11px"></div>
         <div class="field"><label>CSV Log Penyimpanan (opsional)</label><input type="text" class="mono" id="shLOG" value="${esc(DB.cfg.sheetLOG||'')}" placeholder="...output=csv" style="font-size:11px"></div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:12.5px;margin-bottom:10px">
+          <label><input type="checkbox" id="csvAutoPull" ${DB.cfg.csvAutoPull?'checked':''}> Jadikan CSV sebagai sumber utama saat aplikasi dibuka dan saat tombol Sinkron Data ditekan</label>
+        </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
           <button class="btn ghost" onclick="App.saveSheets()">Simpan sumber CSV</button>
           <button class="btn amber" onclick="App.updateFromSheets()">Tarik data CSV</button>
@@ -2396,6 +2410,7 @@ async function saveGitHubConfig(){
   if(VIEW==='guide') render();
 }
 async function openSyncHub(){
+  if(csvAutoPullEnabled()) return pullFromCsvSources({manual:true});
   if(hasGitHubSource()) return pullFromGitHub();
   if(hasSheetWriteTarget()) return pullFromGoogleSheetsSync();
   nav('guide');
@@ -2783,13 +2798,19 @@ async function _fetchCSV(url){
   const r=await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status);
   return _csvObjects(await r.text());
 }
-async function _updateFromSheets(){
+async function pullFromCsvSources({manual=true, quiet=false, renderAfter=true}={}){
   const bi=gitTrim(DB.cfg.sheetBI);
   const uji=gitTrim(DB.cfg.sheetUJI);
   const log=gitTrim(DB.cfg.sheetLOG);
-  if(!bi && !uji && !log){ toast('Isi minimal satu URL CSV yang ingin ditarik','err'); return; }
-  if(location.protocol==='file:'){ toast('Tombol Update butuh aplikasi dibuka via http (host/server). Untuk berkas lokal, pakai "Impor berkas CSV".','err'); return; }
-  toast('Mengambil data dari Google Sheets...');
+  if(!bi && !uji && !log){
+    if(manual && !quiet) toast('Isi minimal satu URL CSV yang ingin ditarik','err');
+    return false;
+  }
+  if(location.protocol==='file:'){
+    if(manual && !quiet) toast('Tombol Update butuh aplikasi dibuka via http (host/server). Untuk berkas lokal, pakai "Impor berkas CSV".','err');
+    return false;
+  }
+  if(manual && !quiet) toast('Mengambil data dari CSV / Google Sheets...');
   try{
     const next = {samples:[], tests:[], movements:[]};
     const notes = [];
@@ -2824,11 +2845,18 @@ async function _updateFromSheets(){
     DB.tests=next.tests;
     DB.movements=next.movements;
     await save('S'); await save('T'); await save('M');
-    DB.cfg.lastSync=new Date().toISOString(); await save('CFG'); render();
+    DB.cfg.lastSync=new Date().toISOString(); await save('CFG'); if(renderAfter) render();
     let msg = `Tersinkron: ${DB.samples.length} sampel`+(uji?`, ${DB.tests.length} uji`:'')+(log?`, ${DB.movements.length} pergerakan`:'');
     if(notes.length) msg += ` - ${notes.join(' - ')}`;
-    toast(msg);
-  }catch(e){ toast('Gagal memuat: '+(e.message||e)+'. Cek publikasi CSV / koneksi.','err'); }
+    if(manual && !quiet) toast(msg);
+    return true;
+  }catch(e){
+    if(!quiet) toast('Gagal memuat: '+(e.message||e)+'. Cek publikasi CSV / koneksi.','err');
+    return false;
+  }
+}
+async function _updateFromSheets(){
+  return pullFromCsvSources({manual:true});
 }
 function _importFile(kind,el){
   const f=el.files&&el.files[0]; if(!f) return;
@@ -2846,6 +2874,8 @@ async function _saveSheets(){
   if($('#shBI'))  DB.cfg.sheetBI = gitTrim($('#shBI').value);
   if($('#shUJI')) DB.cfg.sheetUJI = gitTrim($('#shUJI').value);
   if($('#shLOG')) DB.cfg.sheetLOG = gitTrim($('#shLOG').value);
+  if($('#csvAutoPull')) DB.cfg.csvAutoPull = !!$('#csvAutoPull').checked;
+  else if(!hasOwn(DB.cfg,'csvAutoPull')) DB.cfg.csvAutoPull = hasCsvSource();
   DB.cfg.csvSourceMigrated = true;
   await save('CFG'); toast('Sumber Google Sheets disimpan');
 }
