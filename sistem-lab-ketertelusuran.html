@@ -1082,6 +1082,7 @@ function viewGuide(){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
           <button class="btn ghost" onclick="App.saveSheetSyncConfig()">Simpan konfigurasi</button>
+          <button class="btn ghost" onclick="App.testGoogleSheetsConnection()">Tes koneksi</button>
           <button class="btn amber" onclick="App.pushToGoogleSheets()">Kirim ke Google Sheets</button>
         </div>
         <div class="micro" style="margin-top:8px">Target: ${esc(sheetTargetSummary())}</div>
@@ -2606,6 +2607,40 @@ async function saveSheetSyncConfig(){
   toast(isLikelyAppsScriptExecUrl(DB.cfg.sheetWriteUrl) ? 'Konfigurasi Google Sheets live sync disimpan' : sheetUrlHelpText(), isLikelyAppsScriptExecUrl(DB.cfg.sheetWriteUrl) ? 'ok' : 'err');
   if(VIEW==='guide') render();
 }
+async function testGoogleSheetsConnection(){
+  if(captureSheetSyncConfigFromForm()) await save('CFG',{skipRemote:true});
+  if(!hasSheetWriteTarget()){
+    toast('URL Web App Google Sheets belum diisi','err');
+    return false;
+  }
+  if(!isLikelyAppsScriptExecUrl(sheetWriteUrl())){
+    toast(sheetUrlHelpText(),'err');
+    return false;
+  }
+  try{
+    const res = await fetch(sheetReadUrl(), {
+      method:'GET',
+      headers:{'Accept':'application/json, text/plain, */*'},
+      cache:'no-store',
+    });
+    if(!res.ok){
+      if(res.status===403) throw new Error(sheetAuthHelpText());
+      if(res.status===404) throw new Error(sheetUrlHelpText());
+      const txt = await res.text();
+      throw new Error(`Koneksi gagal (HTTP ${res.status})${txt ? ': '+txt.slice(0,120) : ''}`);
+    }
+    const out = await res.json();
+    if(out && out.schema===SHEET_SYNC_SCHEMA){
+      const summary = out.summary || `${Array.isArray(out.samples)?out.samples.length:0} sampel`;
+      toast(`Koneksi Google Sheets OK - ${summary}`);
+      return true;
+    }
+    throw new Error('Endpoint merespons, tetapi bukan database SITRAS yang diharapkan.');
+  }catch(e){
+    reportSheetError(e.message||e, true);
+    return false;
+  }
+}
 function serializeSheetSyncDb(reason){
   const payload = {
     schema: SHEET_SYNC_SCHEMA,
@@ -2919,7 +2954,7 @@ const App = {
   _refreshCode, _toggleManual,
   _previewQrUrl, _saveQrUrl, _clearQrUrl,
   saveGitHubConfig, disableGitHubConfig, testGitHubConnection, pullFromGitHub, pushToGitHub,
-  saveSheetSyncConfig, pushToGoogleSheets,
+  saveSheetSyncConfig, testGoogleSheetsConnection, pushToGoogleSheets,
   updateFromSheets:_updateFromSheets, saveSheets:_saveSheets, importFile:_importFile,
 };
 window.App = App;
