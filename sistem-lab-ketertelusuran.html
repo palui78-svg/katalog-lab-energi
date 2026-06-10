@@ -2570,6 +2570,9 @@ function isLikelyAppsScriptExecUrl(url){
 function sheetUrlHelpText(){
   return 'URL Web App Google Sheets belum benar atau deployment belum aktif. Klik "Salin" pada URL Aplikasi web di Apps Script, lalu tempel lagi URL yang berakhir /exec.';
 }
+function sheetAuthHelpText(){
+  return 'Akses Google Sheets ditolak (403). Setelah ganti password Gmail/akun Google, buka Apps Script -> Deploy -> Manage deployments -> Web app -> Update, lalu otorisasi ulang akun palui78@gmail.com dan pastikan aksesnya "Anyone".';
+}
 function sheetReadUrl(){
   if(!hasSheetWriteTarget()) return '';
   const sep = sheetWriteUrl().indexOf('?') >= 0 ? '&' : '?';
@@ -2673,6 +2676,7 @@ async function pullFromGoogleSheetsSync({manual=true, quiet=false, renderAfter=t
     });
     if(!res.ok){
       if(res.status===404) throw new Error(sheetUrlHelpText());
+      if(res.status===403) throw new Error(sheetAuthHelpText());
       const txt = await res.text();
       throw new Error(`Gagal memuat data Google Sheets (HTTP ${res.status})${txt ? ': '+txt.slice(0,160) : ''}`);
     }
@@ -2726,6 +2730,7 @@ async function pushToGoogleSheets({manual=true, reason='manual'}={}){
     try{ out = txt ? JSON.parse(txt) : null; }catch(e){ out = null; }
     if(!res.ok){
       if(res.status===404) throw new Error(sheetUrlHelpText());
+      if(res.status===403) throw new Error(sheetAuthHelpText());
       throw new Error(`Gagal mengirim data ke Google Sheets (HTTP ${res.status})${txt ? ': '+txt.slice(0,160) : ''}`);
     }
     if(out && out.ok===false){
