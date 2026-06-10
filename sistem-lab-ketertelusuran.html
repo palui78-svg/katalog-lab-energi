@@ -2562,7 +2562,12 @@ async function pushToGitHub({manual=true, reason='manual'}={}){
 /* ============================================================
    GOOGLE SHEETS LIVE SYNC (Apps Script Web App)
    ============================================================ */
-function sheetWriteUrl(){ return gitTrim(DB.cfg.sheetWriteUrl); }
+function normalizeAppsScriptExecUrl(url){
+  const text = gitTrim(url);
+  if(!text) return '';
+  return text.replace(/^https:\/\/script\.google\.com\/macros\/u\/\d+\/s\//i,'https://script.google.com/macros/s/');
+}
+function sheetWriteUrl(){ return normalizeAppsScriptExecUrl(DB.cfg.sheetWriteUrl); }
 function sheetWriteToken(){ return gitTrim(DB.cfg.sheetWriteToken); }
 function hasSheetWriteTarget(){ return !!sheetWriteUrl(); }
 function isLikelyAppsScriptExecUrl(url){
@@ -2595,7 +2600,7 @@ function sheetStatusText(){
 }
 function captureSheetSyncConfigFromForm(){
   if(!$('#gsWriteUrl')) return false;
-  DB.cfg.sheetWriteUrl = gitTrim($('#gsWriteUrl').value) || DEFAULT_SHEET_WRITE_URL;
+  DB.cfg.sheetWriteUrl = normalizeAppsScriptExecUrl($('#gsWriteUrl').value) || DEFAULT_SHEET_WRITE_URL;
   DB.cfg.sheetWriteToken = gitTrim($('#gsWriteToken').value);
   DB.cfg.sheetWriteAutoSync = !!($('#gsWriteAuto') && $('#gsWriteAuto').checked);
   return true;
